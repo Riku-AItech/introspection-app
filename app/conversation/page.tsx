@@ -5,8 +5,13 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import Image from 'next/image'
 import { ChatInterface } from '../components/chat-interface'
 import { BackgroundMusic } from '../components/background-music'
+import { Button } from "@/components/ui/button"
+import { Home, ArrowLeft } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 export default function ConversationPage() {
+  const router = useRouter()
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-gray-900 p-4 relative overflow-hidden">
       {/* Geometric patterns */}
@@ -21,9 +26,29 @@ export default function ConversationPage() {
         <div className="absolute top-1/3 right-1/3 w-96 h-96 bg-pink-500/10 rounded-full mix-blend-overlay filter blur-3xl" />
       </div>
 
+      {/* Navigation buttons */}
+      <div className="fixed top-4 left-4 z-50 flex gap-2">
+        <Button
+          onClick={() => router.back()}
+          variant="ghost"
+          className="bg-white/10 hover:bg-white/20 text-white"
+          size="icon"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <Button
+          onClick={() => router.push('/')}
+          variant="ghost"
+          className="bg-white/10 hover:bg-white/20 text-white"
+          size="icon"
+        >
+          <Home className="h-5 w-5" />
+        </Button>
+      </div>
+
       {/* Content */}
       <div className="container mx-auto max-w-4xl h-screen py-8">
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-[calc(100vh-4rem)]">
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -46,9 +71,9 @@ export default function ConversationPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 1.2, delay: 0.3 }}
-            className="flex-1"
+            className="flex-1 min-h-0"
           >
-            <Card className="h-[calc(100vh-220px)] relative overflow-hidden backdrop-blur-xl border-0 bg-white/5">
+            <Card className="h-full relative overflow-hidden backdrop-blur-xl border-0 bg-white/5">
               {/* Glass effect overlay */}
               <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-white/5 to-transparent pointer-events-none" />
               
