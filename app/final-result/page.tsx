@@ -1,132 +1,144 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import Image from 'next/image';
-import { Home, ArrowLeft, Download } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import html2canvas from 'html2canvas';
-import { useRef } from 'react';
 import { useAppStore } from '@/lib/store';
-import { Line } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend
-} from 'chart.js';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft, Home } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import ReactFlow, { Background, Controls, MiniMap, Node, Edge } from 'reactflow';
+import 'reactflow/dist/style.css';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend
-);
+// ノードの型定義
+interface Position {
+  x: number;
+  y: number;
+}
+
+// ReactFlowのノード型定義
+type MindMapNode = {
+  id: string;
+  type: string;
+  data: {
+    label: string;
+  };
+  position: Position;
+};
+
+// エッジの型定義
+type MindMapEdge = {
+  id: string;
+  source: string;
+  target: string;
+  type?: string;
+  animated?: boolean;
+  style?: React.CSSProperties;
+};
 
 export default function FinalResultPage() {
   const router = useRouter();
-  const contentRef = useRef<HTMLDivElement>(null);
-  const { lifeEvents, poem, mindmap } = useAppStore();
+  const { 
+    poem, 
+    mindmap, 
+    resetStore,
+    lifeEvents,
+    goals,
+    mindmapContent
+  } = useAppStore();
 
-  const chartData = {
-    labels: lifeEvents.map(event => `${event.age}歳`),
-    datasets: [
-      {
-        label: '人生の満足度',
-        data: lifeEvents.map(event => event.happiness),
-        fill: false,
-        borderColor: 'rgba(147, 51, 234, 0.8)',
-        tension: 0.4,
-        pointBackgroundColor: 'rgba(147, 51, 234, 0.8)',
-        pointBorderColor: '#fff',
-        pointBorderWidth: 2,
-        pointRadius: 6,
-      }
-    ]
-  };
-
-  const chartOptions = {
-    responsive: true,
-    scales: {
-      y: {
-        min: 0,
-        max: 100,
-        grid: {
-          color: 'rgba(255, 255, 255, 0.1)',
-        },
-        ticks: {
-          color: 'rgba(255, 255, 255, 0.8)',
-        },
-      },
-      x: {
-        grid: {
-          color: 'rgba(255, 255, 255, 0.1)',
-        },
-        ticks: {
-          color: 'rgba(255, 255, 255, 0.8)',
-        },
-      }
-    },
-    plugins: {
-      legend: {
-        labels: {
-          color: 'rgba(255, 255, 255, 0.8)',
+  // ノードの位置を計算
+  const calculateNodePosition = (node: MindMapNode): Position => {
+    const baseX = 600;
+    const baseY = 100;
+    
+    switch (node.type) {
+      case 'root':
+        return { x: baseX, y: 50 };
+      case 'goal':
+        const goalOffsets = {
+          '長期': { x: -400, y: 150 },
+          '中期': { x: 0, y: 150 },
+          '短期': { x: 400, y: 150 },
+        };
+        const goalType = node.data.label.includes('長期') ? '長期' :
+                        node.data.label.includes('中期') ? '中期' : '短期';
+        return {
+          x: baseX + goalOffsets[goalType].x,
+          y: baseY + goalOffsets[goalType].y,
+        };
+      case 'step':
+        if (node.data.label.includes('ステップ')) {
+          const stepIndex = parseInt(node.id.split('-').pop() || '1');
+          const parentType = node.data.label.includes('長期') ? '長期' :
+                           node.data.label.includes('中期') ? '中期' : '短期';
+          const parentPos = calculateNodePosition({
+            id: 'parent',
+            type: 'goal',
+            data: { label: parentType },
+            position: { x: 0, y: 0 }
+          });
+          return {
+            x: parentPos.x,
+            y: parentPos.y + 100 + (stepIndex - 1) * 80,
+          };
         }
-      }
+        return { x: baseX, y: baseY };
+      default:
+        return { x: baseX, y: baseY };
     }
   };
 
-  const renderMindmapNode = (node: any, level: number = 0) => {
-    const baseClassName = "relative p-4 rounded-lg border border-indigo-400/20 bg-white/5 backdrop-blur-sm";
-    const levelColors = [
-      "from-purple-500/40 to-indigo-500/40",
-      "from-indigo-500/40 to-blue-500/40",
-      "from-blue-500/40 to-cyan-500/40"
-    ];
-
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: level * 0.1 }}
-        className="relative"
-        key={node.id}
-      >
-        <div className={`${baseClassName} bg-gradient-to-r ${levelColors[level % 3]}`}>
-          <p className="text-indigo-100">{node.content}</p>
-        </div>
-        {node.children.length > 0 && (
-          <div className="ml-8 mt-4 space-y-4 border-l-2 border-indigo-400/20 pl-4">
-            {node.children.map((child: any) => renderMindmapNode(child, level + 1))}
-          </div>
-        )}
-      </motion.div>
-    );
+  // ホームボタンクリック時はデータをリセットしてホームに戻る
+  const handleHomeClick = () => {
+    resetStore();
+    router.push('/');
   };
 
-  const saveAsImage = async () => {
-    if (!contentRef.current) return;
+  // 戻るボタンクリック時はデータを保持したまま戻る
+  const handleBackClick = () => {
+    router.back();
+  };
 
-    try {
-      const canvas = await html2canvas(contentRef.current, {
-        backgroundColor: null,
-        scale: 2,
-      });
+  // ノードのスタイルを設定
+  const getNodeStyle = (type: string) => {
+    const baseStyle = {
+      padding: '10px 20px',
+      borderRadius: '8px',
+      fontSize: '14px',
+      fontWeight: 'bold' as const,
+      border: '2px solid',
+      textAlign: 'center' as const,
+      width: '300px',
+    };
 
-      const link = document.createElement('a');
-      link.download = '人生の軌跡.png';
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-    } catch (error) {
-      console.error('Error saving image:', error);
+    switch (type) {
+      case 'root':
+        return {
+          ...baseStyle,
+          background: '#4a5568',
+          borderColor: '#2d3748',
+          color: 'white',
+        };
+      case 'goal':
+        return {
+          ...baseStyle,
+          background: '#4299e1',
+          borderColor: '#2b6cb0',
+          color: 'white',
+        };
+      case 'step':
+        return {
+          ...baseStyle,
+          background: '#38b2ac',
+          borderColor: '#2c7a7b',
+          color: 'white',
+        };
+      default:
+        return {
+          ...baseStyle,
+          background: '#cbd5e0',
+          borderColor: '#a0aec0',
+          color: '#2d3748',
+        };
     }
   };
 
@@ -146,7 +158,7 @@ export default function FinalResultPage() {
       {/* Navigation buttons */}
       <div className="fixed top-4 left-4 z-50 flex gap-2">
         <Button
-          onClick={() => router.back()}
+          onClick={handleBackClick}
           variant="ghost"
           className="bg-white/10 hover:bg-white/20 text-white"
           size="icon"
@@ -154,7 +166,7 @@ export default function FinalResultPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <Button
-          onClick={() => router.push('/')}
+          onClick={handleHomeClick}
           variant="ghost"
           className="bg-white/10 hover:bg-white/20 text-white"
           size="icon"
@@ -163,95 +175,138 @@ export default function FinalResultPage() {
         </Button>
       </div>
 
-      {/* Content */}
-      <div className="container mx-auto max-w-6xl">
-        <div className="flex flex-col" ref={contentRef}>
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1.2 }}
-            className="text-center mb-6"
-          >
-            <div className="relative inline-block">
-              <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/30 to-purple-500/30 rounded-full blur-xl" />
-              <Image
-                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/柴犬魔法使い.jpg-ga7pDHemgJzOAmWQpXHuHVW8qc8BFI.jpeg"
-                alt="Mystical Shiba Guide"
-                width={100}
-                height={100}
-                className="relative rounded-full border-4 border-indigo-400/50 shadow-lg shadow-indigo-500/30"
-              />
-            </div>
-          </motion.div>
+      <div className="container mx-auto max-w-6xl relative z-10">
+        <h1 className="text-3xl font-bold text-center mb-8 text-white">最終結果</h1>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1.2, delay: 0.3 }}
-            className="space-y-6"
-          >
-            {/* 詩のセクション */}
-            <Card className="relative overflow-hidden backdrop-blur-xl border-0 bg-white/5">
-              <CardHeader className="relative space-y-2 text-center">
-                <CardTitle className="text-2xl font-bold font-serif">
-                  <span className="bg-gradient-to-r from-indigo-300 via-purple-300 to-pink-300 bg-clip-text text-transparent">
-                    あなたへの詩
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-indigo-100 text-center italic">
-                {poem}
-              </CardContent>
-            </Card>
+        <div className="space-y-8">
+          {/* Poem section */}
+          <Card className="p-6 bg-white/10 backdrop-blur-lg rounded-lg border-0">
+            <h2 className="text-2xl font-semibold mb-4 text-white">あなたのための詩</h2>
+            <div className="text-white/90 whitespace-pre-wrap">{poem}</div>
+          </Card>
 
-            {/* 人生の軌跡グラフ */}
-            <Card className="relative overflow-hidden backdrop-blur-xl border-0 bg-white/5">
-              <CardHeader className="relative space-y-2 text-center">
-                <CardTitle className="text-2xl font-bold font-serif">
-                  <span className="bg-gradient-to-r from-indigo-300 via-purple-300 to-pink-300 bg-clip-text text-transparent">
-                    人生の軌跡
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="w-full h-[400px]">
-                  <Line data={chartData} options={chartOptions} />
+          {/* Life events section */}
+          <Card className="p-6 bg-white/10 backdrop-blur-lg rounded-lg border-0">
+            <h2 className="text-2xl font-semibold mb-4 text-white">あなたの人生の軌跡</h2>
+            <div className="space-y-4">
+              {lifeEvents.map((event, index) => (
+                <div key={index} className="p-4 bg-white/5 rounded-lg">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-lg font-medium text-white">Age {event.age}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-white/80">幸福度:</span>
+                      <div className="w-24 h-2 bg-white/10 rounded-full">
+                        <div
+                          className="h-full bg-gradient-to-r from-green-400 to-blue-500 rounded-full"
+                          style={{ width: `${event.happiness}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-white/90">{event.description}</p>
                 </div>
-              </CardContent>
-            </Card>
+              ))}
+            </div>
+          </Card>
 
-            {/* 未来への目標マインドマップ */}
-            <Card className="relative overflow-hidden backdrop-blur-xl border-0 bg-white/5">
-              <CardHeader className="relative space-y-2 text-center">
-                <CardTitle className="text-2xl font-bold font-serif">
-                  <span className="bg-gradient-to-r from-indigo-300 via-purple-300 to-pink-300 bg-clip-text text-transparent">
-                    未来への道のり
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {mindmap && renderMindmapNode(mindmap)}
-              </CardContent>
-            </Card>
-          </motion.div>
+          {/* Edited goals and roadmap section */}
+          <Card className="p-6 bg-white/10 backdrop-blur-lg rounded-lg border-0">
+            <h2 className="text-2xl font-semibold mb-4 text-white">編集後の目標と達成への道筋</h2>
+            <div className="space-y-4">
+              {goals.map((goal, index) => (
+                <div key={index} className="p-4 bg-white/5 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`px-2 py-1 rounded-full text-sm font-medium ${
+                      goal.type === '短期' ? 'bg-blue-500/20 text-blue-300' :
+                      goal.type === '中期' ? 'bg-purple-500/20 text-purple-300' :
+                      'bg-green-500/20 text-green-300'
+                    }`}>
+                      {goal.type}
+                    </span>
+                    <p className="text-white/90">{goal.content}</p>
+                  </div>
+                </div>
+              ))}
+              {mindmapContent && (
+                <div className="mt-4 p-4 bg-white/5 rounded-lg">
+                  <pre className="text-white/90 whitespace-pre-wrap">{mindmapContent}</pre>
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* Mind map section */}
+          <Card className="p-6 bg-white/10 backdrop-blur-lg rounded-lg border-0">
+            <h2 className="text-2xl font-semibold mb-4 text-white">目標達成への道筋</h2>
+            <div className="h-[800px] bg-white/5 rounded-lg">
+              {mindmap && (
+               <ReactFlow
+                 nodes={mindmap.nodes.map((node) => ({
+                   id: node.id,
+                   type: 'default',
+                   data: { label: node.label },
+                   position: node.position || calculateNodePosition({
+                     id: node.id,
+                     type: node.type,
+                     data: { label: node.label },
+                     position: { x: 0, y: 0 }
+                   }),
+                   style: getNodeStyle(node.type),
+                 }))}
+                 edges={(mindmap.edges || []).map((edge) => ({
+                   id: edge.id,
+                   source: edge.source,
+                   target: edge.target,
+                   type: 'smoothstep',
+                   animated: true,
+                   style: { stroke: '#ffffff40', strokeWidth: 2 },
+                 }))}
+                 fitView
+                 minZoom={0.5}
+                 maxZoom={1.5}
+                 defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+                >
+                  <Background color="#ffffff20" gap={16} />
+                  <Controls showInteractive={false} />
+                  <MiniMap
+                    nodeColor={(node) => {
+                      switch (node.type) {
+                        case 'root':
+                          return '#4a5568';
+                        case 'goal':
+                          return '#4299e1';
+                        case 'step':
+                          return '#38b2ac';
+                        default:
+                          return '#cbd5e0';
+                      }
+                    }}
+                    maskColor="#00000060"
+                  />
+                </ReactFlow>
+              )}
+            </div>
+          </Card>
+
+          {/* Shiba Inu message */}
+          <Card className="p-6 bg-white/10 backdrop-blur-lg rounded-lg border-0">
+            <div className="flex items-center gap-4">
+              <img
+                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/柴犬魔法使い.jpg-ga7pDHemgJzOAmWQpXHuHVW8qc8BFI.jpeg"
+                alt="柴犬"
+                className="w-16 h-16 rounded-full border-2 border-white/20 shadow-lg"
+              />
+              <div className="text-white">
+                <p className="text-lg">
+                  あなたの人生の道筋を一緒に考えることができて嬉しかったワン！
+                  これからも自分の本当にやりたいことを見つけていってほしいワン。
+                  応援しているワン！
+                </p>
+              </div>
+            </div>
+          </Card>
         </div>
-
-        {/* 画像として保存ボタン */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 1.5 }}
-          className="mt-8 flex justify-center"
-        >
-          <Button
-            onClick={saveAsImage}
-            className="bg-indigo-500/80 hover:bg-indigo-600/80 text-white px-8 py-6 text-lg flex items-center gap-2"
-          >
-            <Download className="h-5 w-5" />
-            画像として保存する
-          </Button>
-        </motion.div>
       </div>
     </div>
   );
-} 
+}

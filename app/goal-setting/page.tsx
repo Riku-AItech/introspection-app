@@ -82,7 +82,7 @@ export default function GoalSettingPage() {
                 </CardDescription>
               </CardHeader>
 
-              <GoalMindmap onComplete={(mindmap) => router.push('/final-result')} />
+              <GoalMindmap />
             </Card>
           </motion.div>
         </div>
